@@ -1,6 +1,5 @@
 <?php
 session_start();
-
 // Check if the user is logged in and the session is active
 if (isset($_SESSION['member_id'])) {
     // Set the session expiration time (2 hours) if not already set
@@ -29,7 +28,6 @@ if (isset($_SESSION['member_id'])) {
     $_SESSION['LAST_ACTIVITY'] = time();
 }
 ?>
-
 <!-- Header Boiler plate -->
 <!DOCTYPE html>
 <html lang="en">

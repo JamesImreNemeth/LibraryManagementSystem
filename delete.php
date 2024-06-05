@@ -4,8 +4,41 @@ require_once './config/connection.php'; // Ensure this file sets up the PDO conn
 
 // Check database connection
 if ($conn === false) {
-    die("Error: Unable to connect to the database. ");
+    die("Error: Unable to connect to the database.");
 }
+
+// Function to alter foreign key constraints
+function modifyForeignKeyConstraints($conn) {
+    try {
+        // Drop the existing foreign key constraint in book_status
+        $sql = "ALTER TABLE book_status DROP FOREIGN KEY book_status_ibfk_1";
+        $conn->exec($sql);
+
+        // Add the new foreign key constraint with ON DELETE CASCADE in book_status
+        $sql = "ALTER TABLE book_status
+                ADD CONSTRAINT book_status_ibfk_1
+                FOREIGN KEY (BookID) REFERENCES books(BookID)
+                ON DELETE CASCADE";
+        $conn->exec($sql);
+
+        // Drop the existing foreign key constraint in borrow_records
+        $sql = "ALTER TABLE borrow_records DROP FOREIGN KEY borrow_records_ibfk_2";
+        $conn->exec($sql);
+
+        // Add the new foreign key constraint with ON DELETE CASCADE in borrow_records
+        $sql = "ALTER TABLE borrow_records
+                ADD CONSTRAINT borrow_records_ibfk_2
+                FOREIGN KEY (BookID) REFERENCES books(BookID)
+                ON DELETE CASCADE";
+        $conn->exec($sql);
+
+    } catch (PDOException $e) {
+        echo "Error modifying foreign key constraints: " . $e->getMessage();
+    }
+}
+
+// Modify foreign key constraints
+modifyForeignKeyConstraints($conn);
 
 // Check if form is submitted for deleting
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete'])) {
@@ -20,18 +53,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete'])) {
     if ($status == 'On Loan') {
         echo "Error: This book is currently on loan and cannot be deleted.";
     } else {
-        // Build SQL query for deleting the book
-        $sql = "DELETE FROM books WHERE Title = :title";
-        
-        // Prepare and execute the SQL query
-        $stmt = $conn->prepare($sql);
-        $result = $stmt->execute(['title' => $titleToDelete]);
+        try {
+            // Begin transaction
+            $conn->beginTransaction();
 
-        // Check if deletion was successful
-        if ($result) {
-            echo "Book deleted successfully.";
-        } else {
-            echo "Error deleting book.";
+            // Get the BookID of the book to delete
+            $sql = "SELECT BookID FROM books WHERE Title = :title";
+            $stmt = $conn->prepare($sql);
+            $stmt->execute(['title' => $titleToDelete]);
+            $bookId = $stmt->fetchColumn();
+
+            if ($bookId) {
+                // Delete the book from books table
+                $sql = "DELETE FROM books WHERE BookID = :bookId";
+                $stmt = $conn->prepare($sql);
+                $stmt->execute(['bookId' => $bookId]);
+
+                // Commit transaction
+                $conn->commit();
+                echo "Book deleted successfully.";
+            } else {
+                echo "Error: Book not found.";
+            }
+        } catch (Exception $e) {
+            // Rollback transaction if something goes wrong
+            $conn->rollBack();
+            echo "Error deleting book: " . $e->getMessage();
         }
     }
 }
